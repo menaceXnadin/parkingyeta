@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "454525344145",
+    "project_id": "sajiloparkingproject",
+    "storage_bucket": "sajiloparkingproject.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:454525344145:android:3631616a0ee6d80edc6230",
+        "android_client_info": {
+          "package_name": "com.example.sajiloparking"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA7O-M1DqTR5wXwCLSloimimTxGCx4kRZo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
