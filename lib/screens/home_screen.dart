@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // Add this import for kDebugMode
-import 'package:flutter/scheduler.dart'; // Add this import for scheduleMicrotask
+import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:location/location.dart';
@@ -11,7 +10,7 @@ import '../models/parking_spot.dart';
 import '../providers/parking_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/places_service.dart';
-import '../widgets/profile_avatar.dart'; // Add this import
+import '../widgets/profile_avatar.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -23,7 +22,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  GoogleMapController? mapController; // Changed from late to nullable
+  GoogleMapController? mapController;
   final LatLng _center = const LatLng(27.7046, 85.3206); // Kathmandu
   final PlacesService _placesService = PlacesService();
   final TextEditingController _searchController = TextEditingController();
@@ -36,25 +35,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Custom marker icons cache with different sizes
   final Map<String, BitmapDescriptor> _markerCache = {};
-  double _currentZoom = 12.0; // Track current zoom level
+  double _currentZoom = 12.0;
 
   // Dark map style
   String? _darkMapStyle;
-  bool _isDarkModeApplied = false; // Track current map theme state
 
   // Kathmandu Valley bounds
   static final LatLngBounds _kathmanduBounds = LatLngBounds(
-    southwest: const LatLng(27.6000, 85.2000), // Southwest corner
-    northeast: const LatLng(27.8000, 85.4500), // Northeast corner
+    southwest: const LatLng(27.6000, 85.2000),
+    northeast: const LatLng(27.8000, 85.4500),
   );
 
   // Zoom limits
   static const double _minZoom = 10.0;
   static const double _maxZoom = 20.0;
 
-  bool _isSubmitting = false;
-  bool _isLoadingLocation = false;
-  ParkingSpot? _selectedParkingSpot; // Add selected parking spot state
+  ParkingSpot? _selectedParkingSpot;
+  bool _areButtonsVisible = false;
 
   @override
   void initState() {
@@ -68,8 +65,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // Load dark map style from assets
   Future<void> _loadMapStyle() async {
     try {
-      // Load the JSON file from the assets
-      final String jsonString = await rootBundle.loadString('assets/map_styles/dark_map_style.json');
+      final String jsonString = await rootBundle.loadString(
+        'assets/map_styles/dark_map_style.json',
+      );
       _darkMapStyle = jsonString;
     } catch (e) {
       if (kDebugMode) {
@@ -78,37 +76,20 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Update map style based on theme with optimization
-  void _updateMapStyle(bool isDarkMode) {
-    // Only update if the theme actually changed and mapController is available
-    if (_isDarkModeApplied == isDarkMode || mapController == null) return;
-
-    _isDarkModeApplied = isDarkMode;
-
-    if (isDarkMode && _darkMapStyle != null) {
-      mapController!.setMapStyle(_darkMapStyle);
-    } else {
-      mapController!.setMapStyle(null); // Reset to default light style
-    }
-  }
-
-  // Create custom parking markers with responsive sizing - optimized to prevent buffer overflow
+  // Create custom parking markers with responsive sizing
   Future<void> _createCustomMarkers() async {
-    // Reduce zoom levels to prevent buffer overflow - only create essential sizes
-    final zoomLevels = [10.0, 14.0, 18.0]; // Reduced from 8 to 3 levels
+    final zoomLevels = [10.0, 14.0, 18.0];
 
     for (double zoom in zoomLevels) {
       final size = _getMarkerSizeForZoom(zoom);
 
       try {
-        // Create markers one at a time with small delays to prevent buffer overflow
         _markerCache['free_$zoom'] = await _createCustomMarker(
           color: Colors.green,
           text: 'FREE',
           size: size,
         );
 
-        // Small delay between marker creations to prevent buffer overflow
         await Future.delayed(const Duration(milliseconds: 10));
 
         _markerCache['paid_$zoom'] = await _createCustomMarker(
@@ -117,48 +98,45 @@ class _HomeScreenState extends State<HomeScreen> {
           size: size,
         );
 
-        // Small delay between marker creations
         await Future.delayed(const Duration(milliseconds: 10));
-
       } catch (e) {
         if (kDebugMode) {
           print('Error creating marker for zoom $zoom: $e');
         }
-        // Fallback to default markers if custom creation fails
-        _markerCache['free_$zoom'] = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
-        _markerCache['paid_$zoom'] = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
+        _markerCache['free_$zoom'] = BitmapDescriptor.defaultMarkerWithHue(
+          BitmapDescriptor.hueGreen,
+        );
+        _markerCache['paid_$zoom'] = BitmapDescriptor.defaultMarkerWithHue(
+          BitmapDescriptor.hueOrange,
+        );
       }
     }
 
-    setState(() {}); // Refresh to update markers
+    setState(() {});
   }
 
-  // Calculate marker size based on zoom level - made even smaller
   double _getMarkerSizeForZoom(double zoom) {
-    // Smaller sizes that are more proportional to the map
-    if (zoom <= 10) return 30;  // Very small for far zoom
-    if (zoom <= 12) return 35;  // Small for city level
-    if (zoom <= 14) return 40;  // Medium for district level
-    if (zoom <= 16) return 45;  // Normal for street level
-    if (zoom <= 18) return 50;  // Slightly larger for close zoom
-    return 55; // Max size for very close zoom - much smaller than before
+    if (zoom <= 10) return 30;
+    if (zoom <= 12) return 35;
+    if (zoom <= 14) return 40;
+    if (zoom <= 16) return 45;
+    if (zoom <= 18) return 50;
+    return 55;
   }
 
-  // Get appropriate marker for current zoom level
   BitmapDescriptor? _getMarkerForSpot(ParkingSpot spot) {
     final zoomKey = _getNearestZoomKey(_currentZoom);
     final markerKey = spot.isPaid ? 'paid_$zoomKey' : 'free_$zoomKey';
     return _markerCache[markerKey];
   }
 
-  // Get the nearest zoom level key for marker selection - updated for fewer levels
   double _getNearestZoomKey(double currentZoom) {
-    final zoomLevels = [10.0, 14.0, 18.0]; // Reduced set
-    return zoomLevels.reduce((a, b) =>
-      (currentZoom - a).abs() < (currentZoom - b).abs() ? a : b);
+    final zoomLevels = [10.0, 14.0, 18.0];
+    return zoomLevels.reduce(
+      (a, b) => (currentZoom - a).abs() < (currentZoom - b).abs() ? a : b,
+    );
   }
 
-  // Create a responsive custom marker with large SP text only
   Future<BitmapDescriptor> _createCustomMarker({
     required Color color,
     required String text,
@@ -167,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
     final Canvas canvas = Canvas(pictureRecorder);
 
-    // Draw marker background (rounded rectangle)
+    // Draw marker background
     final Paint bgPaint = Paint()
       ..color = color
       ..style = PaintingStyle.fill;
@@ -178,15 +156,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     canvas.drawRRect(bgRect, bgPaint);
 
-    // Draw white border (scales with size)
+    // Draw white border
     final Paint borderPaint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
       ..strokeWidth = size * 0.03;
     canvas.drawRRect(bgRect, borderPaint);
 
-    // Draw large "SP" in the center (much bigger than before)
-    final spFontSize = size * 0.35; // Much larger SP text
+    // Draw "SP" text
+    final spFontSize = size * 0.35;
     final spPainter = TextPainter(
       text: TextSpan(
         text: 'SP',
@@ -203,12 +181,12 @@ class _HomeScreenState extends State<HomeScreen> {
       canvas,
       Offset(
         (size - spPainter.width) / 2,
-        (size * 0.8 - spPainter.height) / 2 - size * 0.05, // Center vertically with slight offset up
+        (size * 0.8 - spPainter.height) / 2 - size * 0.05,
       ),
     );
 
-    // Draw FREE/PAID text at the bottom (smaller than SP)
-    final textFontSize = size * 0.15; // Slightly larger than before
+    // Draw FREE/PAID text
+    final textFontSize = size * 0.15;
     final textPainter = TextPainter(
       text: TextSpan(
         text: text,
@@ -229,7 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    // Draw pointer/arrow at bottom (responsive size)
+    // Draw pointer/arrow
     final arrowWidth = size * 0.12;
     final Path arrowPath = Path();
     arrowPath.moveTo(size / 2 - arrowWidth, size * 0.8);
@@ -245,17 +223,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final ui.Picture picture = pictureRecorder.endRecording();
     final ui.Image image = await picture.toImage(size.toInt(), size.toInt());
-    final ByteData? bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    final ByteData? bytes = await image.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
 
     return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
   }
 
-  // Request location permission and get current location
   Future<void> _requestLocationPermission() async {
     bool serviceEnabled;
     PermissionStatus permissionGranted;
 
-    // Check if location service is enabled
     serviceEnabled = await _location.serviceEnabled();
     if (!serviceEnabled) {
       serviceEnabled = await _location.requestService();
@@ -264,7 +242,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    // Check location permission
     permissionGranted = await _location.hasPermission();
     if (permissionGranted == PermissionStatus.denied) {
       permissionGranted = await _location.requestPermission();
@@ -273,25 +250,25 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    // Configure location settings for better accuracy
     await _location.changeSettings(
       accuracy: LocationAccuracy.high,
-      interval: 10000, // Update every 10 seconds
-      distanceFilter: 5.0, // Only update if moved 5+ meters
+      interval: 10000,
+      distanceFilter: 5.0,
     );
 
     setState(() {
       _locationPermissionGranted = true;
     });
 
-    // Get current location with better accuracy
     try {
       final locationData = await _location.getLocation();
       if (locationData.latitude != null && locationData.longitude != null) {
-        // Only update if accuracy is reasonable (less than 50 meters)
         if (locationData.accuracy != null && locationData.accuracy! < 50.0) {
           setState(() {
-            _currentPosition = LatLng(locationData.latitude!, locationData.longitude!);
+            _currentPosition = LatLng(
+              locationData.latitude!,
+              locationData.longitude!,
+            );
           });
         }
       }
@@ -310,26 +287,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final locationData = await _location.getLocation();
       if (locationData.latitude != null && locationData.longitude != null) {
-        // Only update if accuracy is reasonable (less than 50 meters)
         if (locationData.accuracy == null || locationData.accuracy! < 50.0) {
-          final currentLocation = LatLng(locationData.latitude!, locationData.longitude!);
+          final currentLocation = LatLng(
+            locationData.latitude!,
+            locationData.longitude!,
+          );
 
           setState(() {
             _currentPosition = currentLocation;
           });
 
-          // Only animate camera if mapController is available
           if (mapController != null) {
             mapController!.animateCamera(
               CameraUpdate.newLatLngZoom(currentLocation, 18.0),
             );
           }
         } else {
-          // Show message if accuracy is poor
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Location accuracy is low (${locationData.accuracy?.toInt()}m). Try moving to an open area.'),
+                content: Text(
+                  'Location accuracy is low (${locationData.accuracy?.toInt()}m). Try moving to an open area.',
+                ),
                 duration: const Duration(seconds: 2),
               ),
             );
@@ -343,7 +322,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Search for parking spots near current location
   void _searchNearMe() async {
     try {
       if (!_locationPermissionGranted) {
@@ -353,32 +331,38 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final locationData = await _location.getLocation();
       if (locationData.latitude != null && locationData.longitude != null) {
-        final currentLocation = LatLng(locationData.latitude!, locationData.longitude!);
+        final currentLocation = LatLng(
+          locationData.latitude!,
+          locationData.longitude!,
+        );
 
         setState(() {
           _currentPosition = currentLocation;
         });
 
-        // Move map to current location with appropriate zoom level only if mapController is available
         if (mapController != null) {
           mapController!.animateCamera(
             CameraUpdate.newLatLngZoom(currentLocation, 16.0),
           );
         }
 
-        // Get nearby parking spots
-        final parkingProvider = Provider.of<ParkingProvider>(context, listen: false);
+        if (!mounted) return;
+        final parkingProvider = Provider.of<ParkingProvider>(
+          context,
+          listen: false,
+        );
         final nearbySpots = _getNearbyParkingSpots(
           currentLocation,
-          parkingProvider.getAllParkingSpots()
+          parkingProvider.spots,
         );
 
-        // Show parking list directly in a slideable bottom sheet
         if (mounted) {
           if (nearbySpots.isEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('No parking spots found within 2km of your location'),
+                content: Text(
+                  'No parking spots found within 2km of your location',
+                ),
                 duration: Duration(seconds: 2),
               ),
             );
@@ -402,46 +386,41 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Google Maps integration functions - direct launch without canLaunchUrl checks
   Future<void> _openGoogleMapsDirections(ParkingSpot spot) async {
     try {
-      // Try Google Maps app with intent scheme first (most reliable on Android)
       final googleMapsIntent = Uri.parse(
-        'google.navigation:q=${spot.latitude},${spot.longitude}&mode=d'
+        'google.navigation:q=${spot.latitude},${spot.longitude}&mode=d',
       );
 
       try {
         await launchUrl(googleMapsIntent, mode: LaunchMode.externalApplication);
         return;
       } catch (e) {
-        // If that fails, try geo intent
+        // Try geo intent
       }
 
-      // Try geo intent for any navigation app
       final geoIntent = Uri.parse(
-        'geo:0,0?q=${spot.latitude},${spot.longitude}(${Uri.encodeComponent(spot.name)})'
+        'geo:0,0?q=${spot.latitude},${spot.longitude}(${Uri.encodeComponent(spot.name)})',
       );
 
       try {
         await launchUrl(geoIntent, mode: LaunchMode.externalApplication);
         return;
       } catch (e) {
-        // If that fails, try web fallback
+        // Try web fallback
       }
 
-      // Fallback to web browser
       final webUrl = Uri.parse(
-        'https://www.google.com/maps/dir/?api=1&destination=${spot.latitude},${spot.longitude}'
+        'https://www.google.com/maps/dir/?api=1&destination=${spot.latitude},${spot.longitude}',
       );
 
       await launchUrl(webUrl, mode: LaunchMode.platformDefault);
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Could not open maps: $e'),
-            duration: Duration(seconds: 3),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -450,43 +429,39 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openGoogleMapsLocation(ParkingSpot spot) async {
     try {
-      // Try Google Maps app intent first
       final googleMapsIntent = Uri.parse(
-        'geo:${spot.latitude},${spot.longitude}?q=${spot.latitude},${spot.longitude}(${Uri.encodeComponent(spot.name)})'
+        'geo:${spot.latitude},${spot.longitude}?q=${spot.latitude},${spot.longitude}(${Uri.encodeComponent(spot.name)})',
       );
 
       try {
         await launchUrl(googleMapsIntent, mode: LaunchMode.externalApplication);
         return;
       } catch (e) {
-        // If that fails, try simple geo intent
+        // Try simple geo intent
       }
 
-      // Try generic map intent
       final mapIntent = Uri.parse(
-        'geo:${spot.latitude},${spot.longitude}?z=17'
+        'geo:${spot.latitude},${spot.longitude}?z=17',
       );
 
       try {
         await launchUrl(mapIntent, mode: LaunchMode.externalApplication);
         return;
       } catch (e) {
-        // If that fails, try web fallback
+        // Try web fallback
       }
 
-      // Fallback to web browser
       final webUrl = Uri.parse(
-        'https://www.google.com/maps/search/?api=1&query=${spot.latitude},${spot.longitude}'
+        'https://www.google.com/maps/search/?api=1&query=${spot.latitude},${spot.longitude}',
       );
 
       await launchUrl(webUrl, mode: LaunchMode.platformDefault);
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Could not open maps: $e'),
-            duration: Duration(seconds: 3),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -501,7 +476,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // Called when search text changes
   void _onSearchChanged() {
     if (_searchController.text.isEmpty) {
       setState(() {
@@ -510,10 +484,8 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // Debounce the search to prevent too many API calls
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      // Only search if text is not empty
       if (_searchController.text.isNotEmpty) {
         _searchLocation(_searchController.text);
       }
@@ -532,7 +504,6 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       );
 
-      // Use zoom-responsive custom icons
       final icon = _getMarkerForSpot(spot);
 
       return Marker(
@@ -541,9 +512,11 @@ class _HomeScreenState extends State<HomeScreen> {
         infoWindow: infoWindow,
         icon: icon ?? BitmapDescriptor.defaultMarker,
         onTap: () {
-          // Select the parking spot to show Google Maps buttons
+          if (_selectedParkingSpot == spot && _areButtonsVisible) return;
+
           setState(() {
             _selectedParkingSpot = spot;
+            _areButtonsVisible = true;
           });
         },
       );
@@ -566,7 +539,9 @@ class _HomeScreenState extends State<HomeScreen> {
       final placesResult = await _placesService.searchPlaces(query);
 
       if (placesResult != null && placesResult['results'] != null) {
-        final results = List<Map<String, dynamic>>.from(placesResult['results']);
+        final results = List<Map<String, dynamic>>.from(
+          placesResult['results'],
+        );
 
         if (results.isNotEmpty) {
           setState(() {
@@ -588,29 +563,26 @@ class _HomeScreenState extends State<HomeScreen> {
   void _selectSearchResult(Map<String, dynamic> result) {
     final location = _placesService.getLocationFromPlaceResult(result);
 
-    // Move map to that location only if mapController is available
     if (mapController != null) {
-      mapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(location, 15.0)
-      );
+      mapController!.animateCamera(CameraUpdate.newLatLngZoom(location, 15.0));
     }
 
-    // Clear search results but keep the text in the search field
     setState(() {
       _searchResults = [];
     });
 
-    // Show parking spots near the searched location
     _showParkingNearLocation(location, result['name'] ?? 'Selected Location');
   }
 
-  // Show parking spots near a specific location (like searched destination)
   void _showParkingNearLocation(LatLng location, String locationName) {
-    final parkingProvider = Provider.of<ParkingProvider>(context, listen: false);
+    final parkingProvider = Provider.of<ParkingProvider>(
+      context,
+      listen: false,
+    );
     final nearbySpots = _getNearbyParkingSpots(
       location,
-      parkingProvider.getAllParkingSpots(),
-      5.0 // 5km radius for destination searches
+      parkingProvider.spots,
+      5.0,
     );
 
     if (nearbySpots.isEmpty) {
@@ -625,8 +597,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Show bottom sheet with parking spots near destination
-  void _showDestinationParkingBottomSheet(List<ParkingSpot> nearbySpots, String locationName, LatLng destinationLocation) {
+  void _showDestinationParkingBottomSheet(
+    List<ParkingSpot> nearbySpots,
+    String locationName,
+    LatLng destinationLocation,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -641,7 +616,7 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 10,
                 offset: const Offset(0, -5),
               ),
@@ -649,7 +624,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           child: Column(
             children: [
-              // Drag handle
               Container(
                 margin: const EdgeInsets.only(top: 8, bottom: 16),
                 height: 4,
@@ -659,52 +633,42 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              // Header
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Parking Near',
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              Text(
-                                locationName,
-                                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                '${nearbySpots.length} parking spot${nearbySpots.length == 1 ? '' : 's'} found',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Parking Near',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: Colors.grey[600]),
                           ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ],
+                          Text(
+                            locationName,
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '${nearbySpots.length} parking spot${nearbySpots.length == 1 ? '' : 's'} found',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
                     ),
                   ],
                 ),
               ),
               const Divider(height: 1),
-              // Parking spots list
               Expanded(
                 child: ListView.builder(
                   controller: scrollController,
@@ -712,7 +676,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemCount: nearbySpots.length,
                   itemBuilder: (context, index) {
                     final spot = nearbySpots[index];
-                    final distance = _calculateDistance(destinationLocation, LatLng(spot.latitude, spot.longitude));
+                    final distance = _calculateDistance(
+                      destinationLocation,
+                      LatLng(spot.latitude, spot.longitude),
+                    );
 
                     return Card(
                       margin: const EdgeInsets.only(bottom: 12),
@@ -721,7 +688,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         leading: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: spot.isPaid ? Colors.orange.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                            color: spot.isPaid
+                                ? Colors.orange.withValues(alpha: 0.1)
+                                : Colors.green.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
@@ -732,9 +701,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         title: Text(
                           spot.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -748,22 +715,30 @@ class _HomeScreenState extends State<HomeScreen> {
                                   color: Colors.grey[600],
                                 ),
                                 const SizedBox(width: 4),
-                                Text('${distance.toStringAsFixed(1)}km from destination'),
+                                Text(
+                                  '${distance.toStringAsFixed(1)}km from destination',
+                                ),
                               ],
                             ),
                             const SizedBox(height: 2),
                             Row(
                               children: [
                                 Icon(
-                                  spot.isPaid ? Icons.payment : Icons.free_breakfast,
+                                  spot.isPaid
+                                      ? Icons.payment
+                                      : Icons.free_breakfast,
                                   size: 16,
-                                  color: spot.isPaid ? Colors.orange : Colors.green,
+                                  color: spot.isPaid
+                                      ? Colors.orange
+                                      : Colors.green,
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
                                   spot.isPaid ? 'Paid Parking' : 'Free Parking',
                                   style: TextStyle(
-                                    color: spot.isPaid ? Colors.orange : Colors.green,
+                                    color: spot.isPaid
+                                        ? Colors.orange
+                                        : Colors.green,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -771,34 +746,25 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ],
                         ),
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.arrow_forward_ios, size: 16),
-                            const SizedBox(height: 4),
-                            Text(
-                              'View',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                         onTap: () {
                           Navigator.pop(context);
-                          // Navigate to spot on map only if mapController is available
                           if (mapController != null) {
                             mapController!.animateCamera(
                               CameraUpdate.newLatLngZoom(
                                 LatLng(spot.latitude, spot.longitude),
-                                18.0
+                                18.0,
                               ),
                             );
                           }
-                          // Show spot details after a delay
                           Future.delayed(const Duration(milliseconds: 500), () {
-                            Navigator.pushNamed(context, '/details', arguments: spot);
+                            if (context.mounted) {
+                              Navigator.pushNamed(
+                                context,
+                                '/details',
+                                arguments: spot,
+                              );
+                            }
                           });
                         },
                       ),
@@ -813,47 +779,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Calculate distance between two LatLng points in kilometers
-  double _calculateDistance(LatLng from, LatLng to) {
-    const double earthRadius = 6371; // Earth's radius in kilometers
-
-    final double lat1Rad = from.latitude * (math.pi / 180);
-    final double lat2Rad = to.latitude * (math.pi / 180);
-    final double deltaLatRad = (to.latitude - from.latitude) * (math.pi / 180);
-    final double deltaLngRad = (to.longitude - from.longitude) * (math.pi / 180);
-
-    final double a = math.sin(deltaLatRad / 2) * math.sin(deltaLatRad / 2) +
-        math.cos(lat1Rad) * math.cos(lat2Rad) *
-        math.sin(deltaLngRad / 2) * math.sin(deltaLngRad / 2);
-    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-
-    return earthRadius * c;
-  }
-
-  // Get nearby parking spots within a certain radius
-  List<ParkingSpot> _getNearbyParkingSpots(LatLng location, List<ParkingSpot> allSpots, [double radiusKm = 2.0]) {
-    final List<ParkingSpot> nearbySpots = [];
-
-    for (final spot in allSpots) {
-      final spotLocation = LatLng(spot.latitude, spot.longitude);
-      final distance = _calculateDistance(location, spotLocation);
-
-      if (distance <= radiusKm) {
-        nearbySpots.add(spot);
-      }
-    }
-
-    // Sort by distance (closest first)
-    nearbySpots.sort((a, b) {
-      final distanceA = _calculateDistance(location, LatLng(a.latitude, a.longitude));
-      final distanceB = _calculateDistance(location, LatLng(b.latitude, b.longitude));
-      return distanceA.compareTo(distanceB);
-    });
-
-    return nearbySpots;
-  }
-
-  // Show bottom sheet with nearby parking spots (for current location search)
   void _showNearbyParkingBottomSheet(List<ParkingSpot> nearbySpots) {
     showModalBottomSheet(
       context: context,
@@ -869,7 +794,7 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 10,
                 offset: const Offset(0, -5),
               ),
@@ -877,7 +802,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           child: Column(
             children: [
-              // Drag handle
               Container(
                 margin: const EdgeInsets.only(top: 8, bottom: 16),
                 height: 4,
@@ -887,7 +811,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              // Header
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
@@ -895,9 +818,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Text(
                       'Nearby Parking (${nearbySpots.length})',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close),
@@ -907,7 +829,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const Divider(height: 1),
-              // Parking spots list
               Expanded(
                 child: ListView.builder(
                   controller: scrollController,
@@ -916,7 +837,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemBuilder: (context, index) {
                     final spot = nearbySpots[index];
                     final distance = _currentPosition != null
-                        ? _calculateDistance(_currentPosition!, LatLng(spot.latitude, spot.longitude))
+                        ? _calculateDistance(
+                            _currentPosition!,
+                            LatLng(spot.latitude, spot.longitude),
+                          )
                         : 0.0;
 
                     return Card(
@@ -926,7 +850,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         leading: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: spot.isPaid ? Colors.orange.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                            color: spot.isPaid
+                                ? Colors.orange.withValues(alpha: 0.1)
+                                : Colors.green.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
@@ -950,7 +876,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         trailing: const Icon(Icons.arrow_forward_ios),
                         onTap: () {
                           Navigator.pop(context);
-                          Navigator.pushNamed(context, '/details', arguments: spot);
+                          if (mounted) {
+                            Navigator.pushNamed(
+                              context,
+                              '/details',
+                              arguments: spot,
+                            );
+                          }
                         },
                       ),
                     );
@@ -964,35 +896,76 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  double _calculateDistance(LatLng from, LatLng to) {
+    const double earthRadius = 6371;
+
+    final double lat1Rad = from.latitude * (math.pi / 180);
+    final double lat2Rad = to.latitude * (math.pi / 180);
+    final double deltaLatRad = (to.latitude - from.latitude) * (math.pi / 180);
+    final double deltaLngRad =
+        (to.longitude - from.longitude) * (math.pi / 180);
+
+    final double a =
+        math.sin(deltaLatRad / 2) * math.sin(deltaLatRad / 2) +
+        math.cos(lat1Rad) *
+            math.cos(lat2Rad) *
+            math.sin(deltaLngRad / 2) *
+            math.sin(deltaLngRad / 2);
+    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+
+    return earthRadius * c;
+  }
+
+  List<ParkingSpot> _getNearbyParkingSpots(
+    LatLng location,
+    List<ParkingSpot> allSpots, [
+    double radiusKm = 2.0,
+  ]) {
+    final List<ParkingSpot> nearbySpots = [];
+
+    for (final spot in allSpots) {
+      final spotLocation = LatLng(spot.latitude, spot.longitude);
+      final distance = _calculateDistance(location, spotLocation);
+
+      if (distance <= radiusKm) {
+        nearbySpots.add(spot);
+      }
+    }
+
+    nearbySpots.sort((a, b) {
+      final distanceA = _calculateDistance(
+        location,
+        LatLng(a.latitude, a.longitude),
+      );
+      final distanceB = _calculateDistance(
+        location,
+        LatLng(b.latitude, b.longitude),
+      );
+      return distanceA.compareTo(distanceB);
+    });
+
+    return nearbySpots;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer2<ParkingProvider, ThemeProvider>(
       builder: (context, parkingProvider, themeProvider, child) {
-        // Update map style when theme changes
-        SchedulerBinding.instance.addPostFrameCallback((_) {
-          _updateMapStyle(themeProvider.isDarkMode);
-        });
-
         return Scaffold(
           appBar: AppBar(
             title: const Text(
               'Parking Yeta',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-              ),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
             ),
             backgroundColor: Theme.of(context).primaryColor,
             foregroundColor: Colors.white,
             elevation: 0,
             actions: [
-              // Search Near Me button
               IconButton(
-                icon: const Icon(Icons.search_outlined),
+                icon: const Icon(Icons.near_me_outlined),
                 onPressed: _searchNearMe,
                 tooltip: 'Search Near Me',
               ),
-              // Dark mode toggle
               IconButton(
                 icon: Icon(
                   themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
@@ -1002,9 +975,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
                 tooltip: themeProvider.isDarkMode ? 'Light Mode' : 'Dark Mode',
               ),
-              // Profile avatar with picture
               Padding(
-                padding: const EdgeInsets.only(right: 8.0, top: 8.0, bottom: 8.0),
+                padding: const EdgeInsets.only(
+                  right: 8.0,
+                  top: 8.0,
+                  bottom: 8.0,
+                ),
                 child: ProfileAvatar(
                   size: 36,
                   onTap: () {
@@ -1016,24 +992,31 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           body: Stack(
             children: [
-              // Google Map
               GoogleMap(
                 onMapCreated: (GoogleMapController controller) {
                   mapController = controller;
-                  // Apply theme immediately after map creation
-                  _updateMapStyle(themeProvider.isDarkMode);
                 },
                 initialCameraPosition: CameraPosition(
                   target: _center,
                   zoom: _currentZoom,
                 ),
-                mapType: MapType.normal, // Use normal 2D map instead of 3D
-                buildingsEnabled: false, // Explicitly disable 3D buildings
-                markers: _buildMarkers(parkingProvider.getAllParkingSpots()),
+                style: themeProvider.isDarkMode ? _darkMapStyle : null,
+                mapType: MapType.normal,
+                buildingsEnabled: false,
+                markers: _buildMarkers(parkingProvider.spots),
                 myLocationEnabled: _locationPermissionGranted,
                 myLocationButtonEnabled: false,
-                zoomControlsEnabled: false, // Disable zoom controls (+/-)
-                minMaxZoomPreference: const MinMaxZoomPreference(_minZoom, _maxZoom),
+                zoomControlsEnabled: false,
+                mapToolbarEnabled: false,
+                compassEnabled: false,
+                rotateGesturesEnabled: true,
+                scrollGesturesEnabled: true,
+                tiltGesturesEnabled: false,
+                zoomGesturesEnabled: true,
+                minMaxZoomPreference: const MinMaxZoomPreference(
+                  _minZoom,
+                  _maxZoom,
+                ),
                 cameraTargetBounds: CameraTargetBounds(_kathmanduBounds),
                 onCameraMove: (CameraPosition position) {
                   _currentZoom = position.zoom;
@@ -1050,7 +1033,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha: 0.1),
                         blurRadius: 10,
                         offset: const Offset(0, 2),
                       ),
@@ -1067,20 +1050,22 @@ class _HomeScreenState extends State<HomeScreen> {
                               height: 20,
                               child: Padding(
                                 padding: EdgeInsets.all(12.0),
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               ),
                             )
                           : (_searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() {
-                                      _searchResults = [];
-                                    });
-                                  },
-                                )
-                              : null),
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() {
+                                        _searchResults = [];
+                                      });
+                                    },
+                                  )
+                                : null),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -1103,7 +1088,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 0.1),
                           blurRadius: 10,
                           offset: const Offset(0, 2),
                         ),
@@ -1128,91 +1113,154 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           floatingActionButton: Stack(
             children: [
-              // Left side Google Maps buttons (only show when parking spot is selected)
+              // Left side buttons (when parking spot is selected)
               if (_selectedParkingSpot != null) ...[
-                // Google Maps Directions button
-                Positioned(
-                  left: 16,
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  left: _areButtonsVisible ? 32 : -60,
                   bottom: 80,
-                  child: FloatingActionButton(
-                    heroTag: "directions",
-                    onPressed: () async {
-                      try {
-                        await _openGoogleMapsDirections(_selectedParkingSpot!);
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error: $e')),
-                        );
-                      }
-                    },
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    child: const Icon(Icons.directions),
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 300),
+                    opacity: _areButtonsVisible ? 1.0 : 0.0,
+                    child: FloatingActionButton(
+                      heroTag: "directions",
+                      onPressed: _areButtonsVisible
+                          ? () async {
+                              try {
+                                await _openGoogleMapsDirections(
+                                  _selectedParkingSpot!,
+                                );
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error: $e')),
+                                  );
+                                }
+                              }
+                            }
+                          : null,
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      child: const Icon(Icons.directions),
+                    ),
                   ),
                 ),
-                // Google Maps View Location button
-                Positioned(
-                  left: 16,
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeInOut,
+                  left: _areButtonsVisible ? 32 : -60,
                   bottom: 0,
-                  child: FloatingActionButton(
-                    heroTag: "view_on_map",
-                    onPressed: () async {
-                      try {
-                        await _openGoogleMapsLocation(_selectedParkingSpot!);
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error: $e')),
-                        );
-                      }
-                    },
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    child: const Icon(Icons.map),
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 350),
+                    opacity: _areButtonsVisible ? 1.0 : 0.0,
+                    child: FloatingActionButton(
+                      heroTag: "view_on_map",
+                      onPressed: _areButtonsVisible
+                          ? () async {
+                              try {
+                                await _openGoogleMapsLocation(
+                                  _selectedParkingSpot!,
+                                );
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error: $e')),
+                                  );
+                                }
+                              }
+                            }
+                          : null,
+                      backgroundColor: const Color(0xFF06D6A0),
+                      foregroundColor: Colors.white,
+                      child: const Icon(Icons.map),
+                    ),
                   ),
                 ),
-                // Close/Deselect button
-                Positioned(
-                  left: 16,
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                  left: _areButtonsVisible ? 32 : -60,
                   bottom: 160,
-                  child: FloatingActionButton(
-                    heroTag: "close_selection",
-                    onPressed: () {
-                      setState(() {
-                        _selectedParkingSpot = null;
-                      });
-                    },
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                    mini: true,
-                    child: const Icon(Icons.close),
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 250),
+                    opacity: _areButtonsVisible ? 1.0 : 0.0,
+                    child: FloatingActionButton(
+                      heroTag: "close_selection",
+                      onPressed: _areButtonsVisible
+                          ? () {
+                              setState(() {
+                                _areButtonsVisible = false;
+                                Future.delayed(
+                                  const Duration(milliseconds: 300),
+                                  () {
+                                    if (mounted) {
+                                      setState(() {
+                                        _selectedParkingSpot = null;
+                                      });
+                                    }
+                                  },
+                                );
+                              });
+                            }
+                          : null,
+                      backgroundColor: const Color(0xFFEF4444),
+                      foregroundColor: Colors.white,
+                      mini: true,
+                      child: const Icon(Icons.close),
+                    ),
                   ),
                 ),
               ],
-              // Right side buttons (existing)
-              // Use Current Location button
+              // Right side buttons
               Positioned(
-                right: 0,
+                right: 16,
                 bottom: 80,
-                child: FloatingActionButton(
-                  heroTag: "location",
-                  onPressed: _getCurrentLocation,
-                  backgroundColor: Theme.of(context).primaryColor,
-                  foregroundColor: Colors.white,
-                  child: const Icon(Icons.my_location),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: FloatingActionButton(
+                    heroTag: "location",
+                    onPressed: _getCurrentLocation,
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    child: const Icon(Icons.my_location, size: 24),
+                  ),
                 ),
               ),
-              // Add Parking Spot button (add location icon)
               Positioned(
-                right: 0,
-                bottom: 0,
-                child: FloatingActionButton(
-                  heroTag: "add_parking",
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/add');
-                  },
-                  backgroundColor: Theme.of(context).primaryColor,
-                  foregroundColor: Colors.white,
-                  child: const Icon(Icons.add_location),
+                right: 16,
+                bottom: 16,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: FloatingActionButton(
+                    heroTag: "add_parking",
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/add');
+                    },
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    child: const Icon(Icons.add_location, size: 24),
+                  ),
                 ),
               ),
             ],

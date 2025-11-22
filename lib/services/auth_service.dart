@@ -1,12 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../models/user_model.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['email', 'profile'],
-  );
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
 
   // Get current user
   User? get currentUser => _auth.currentUser;
@@ -14,83 +15,103 @@ class AuthService {
   // Stream of authentication changes
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  // Sign in with Google - ultra simplified to prevent crashes
+  // Check if current user is guest
+  bool get isGuest => currentUser?.isAnonymous ?? false;
+
+  // Sign in with Google
   Future<bool> signInWithGoogle() async {
     try {
       // Step 1: Sign out first to ensure clean state
       try {
         await _googleSignIn.signOut();
       } catch (e) {
-        if (kDebugMode) {
-          print('Pre-signout error (safe to ignore): $e');
-        }
+        debugPrint('Pre-signout error (safe to ignore): $e');
       }
 
       // Step 2: Try to get Google account
-      if (kDebugMode) {
-        print('Starting Google Sign-In flow');
-      }
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
       if (googleUser == null) {
-        if (kDebugMode) {
-          print('Google Sign-In was canceled by user');
-        }
-        return false;
-      }
-
-      if (kDebugMode) {
-        print('Google Sign-In selected account: ${googleUser.email}');
+        return false; // Canceled by user
       }
 
       // Step 3: Get authentication data
-      try {
-        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
 
-        // Step 4: Create Firebase credential
-        final OAuthCredential credential = GoogleAuthProvider.credential(
-          accessToken: googleAuth.accessToken,
-          idToken: googleAuth.idToken,
-        );
+      // Step 4: Create Firebase credential
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
 
-        // Step 5: Sign in with Firebase
-        if (kDebugMode) {
-          print('Attempting Firebase sign-in');
-        }
-        await _auth.signInWithCredential(credential);
-        if (kDebugMode) {
-          print('Firebase sign-in completed');
-        }
-        return true;
-      } catch (authError) {
-        if (kDebugMode) {
-          print('Auth error: $authError');
-        }
-        // If user is somehow signed in despite errors, consider it success
-        return _auth.currentUser != null;
+      // Step 5: Sign in with Firebase
+      UserCredential userCredential = await _auth.signInWithCredential(
+        credential,
+      );
+
+      // Step 6: Create or Update User in Firestore
+      if (userCredential.user != null) {
+        await _syncUserToFirestore(userCredential.user!);
       }
+
+      return true;
     } catch (e) {
-      if (kDebugMode) {
-        print('Google Sign-In process error: $e');
-      }
+      debugPrint('Google Sign-In process error: $e');
       return false;
     }
   }
 
-  // Sign out - simplified
+  // Sign in anonymously (Guest Mode)
+  Future<bool> signInAnonymously() async {
+    try {
+      await _auth.signInAnonymously();
+      return true;
+    } catch (e) {
+      debugPrint('Anonymous sign in error: $e');
+      return false;
+    }
+  }
+
+  // Sync user data to Firestore
+  Future<void> _syncUserToFirestore(User user) async {
+    try {
+      final userRef = _firestore.collection('users').doc(user.uid);
+
+      final doc = await userRef.get();
+      if (!doc.exists) {
+        // Create new user
+        final newUser = UserModel(
+          id: user.uid,
+          displayName: user.displayName,
+          email: user.email,
+          photoURL: user.photoURL,
+          createdAt: DateTime.now(),
+          lastLoginAt: DateTime.now(),
+        );
+        await userRef.set(newUser.toMap());
+      } else {
+        // Update last login
+        await userRef.update({
+          'lastLoginAt': FieldValue.serverTimestamp(),
+          'photoURL': user.photoURL, // Update photo if changed
+          'displayName': user.displayName, // Update name if changed
+        });
+      }
+    } catch (e) {
+      // Log the error but don't fail the sign-in
+      debugPrint('Firestore sync error (non-fatal): $e');
+      // User is still authenticated even if Firestore sync fails
+    }
+  }
+
+  // Sign out
   Future<void> signOut() async {
     try {
       await _auth.signOut();
       await _googleSignIn.signOut();
     } catch (e) {
-      if (kDebugMode) {
-        print('Sign out error: $e');
-      }
+      debugPrint('Sign out error: $e');
     }
-  }
-
-  // Check if user is signed in
-  bool isSignedIn() {
-    return _auth.currentUser != null;
   }
 }

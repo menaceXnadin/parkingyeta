@@ -8,7 +8,9 @@ class AuthHelper {
   }
 
   // Show login dialog if not authenticated and return whether user is authenticated after dialog
-  static Future<bool> checkAuthAndShowLoginIfNeeded(BuildContext context) async {
+  static Future<bool> checkAuthAndShowLoginIfNeeded(
+    BuildContext context,
+  ) async {
     // If already logged in, return true
     if (isLoggedIn()) {
       return true;
@@ -20,7 +22,9 @@ class AuthHelper {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('Authentication Required'),
-        content: const Text('You need to log in or create an account to add parking spots.'),
+        content: const Text(
+          'You need to log in or create an account to add parking spots.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -36,7 +40,9 @@ class AuthHelper {
 
     // If user chose to log in, navigate to login screen and wait for result
     if (shouldLogin == true) {
-      await Navigator.pushNamed(context, '/login');
+      if (context.mounted) {
+        await Navigator.pushNamed(context, '/login');
+      }
 
       // After returning from login screen, check if now logged in
       return isLoggedIn();

@@ -45,5 +45,15 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- Permission Usage Descriptions -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Sajilo Parking needs your location to show nearby parking spots and navigate you to them.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Sajilo Parking needs your location to show nearby parking spots and navigate you to them.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Sajilo Parking needs camera access to let you take photos of parking spots.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Sajilo Parking needs photo library access to let you upload photos of parking spots.</string>
 </dict>
 </plist>

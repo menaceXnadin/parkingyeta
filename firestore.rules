@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is signed in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is owner of the document
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if false; // Users cannot be deleted for now
+    }
+
+    // Parking Spots collection
+    match /parking_spots/{spotId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verifications', 'reports']));
+      allow delete: if false; // Only admins can delete spots (handle via backend or console)
+    }
+    
+    // Contributions subcollection
+    match /contributions/{userId}/spots/{spotId} {
+      allow read: if true;
+      allow write: if isSignedIn() && isOwner(userId);
+    }
+  }
+}

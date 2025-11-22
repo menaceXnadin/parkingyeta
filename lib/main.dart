@@ -7,9 +7,12 @@ import 'screens/home_screen.dart';
 import 'screens/parking_details_screen.dart';
 import 'screens/add_parking_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'screens/signup_screen.dart';
 import 'providers/parking_provider.dart';
 import 'providers/theme_provider.dart';
 import 'widgets/auth_wrapper.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,24 +63,25 @@ class SajiloParking extends StatelessWidget {
         // Show loading indicator if the ThemeProvider is not yet initialized
         if (!themeProvider.isInitialized) {
           return MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
-              ),
-            ),
+            home: Scaffold(body: Center(child: CircularProgressIndicator())),
           );
         }
 
         return AnimatedTheme(
-          duration: const Duration(milliseconds: 300), // Smooth transition
-          data: themeProvider.isDarkMode ? _buildDarkTheme() : _buildLightTheme(),
+          duration: const Duration(milliseconds: 300),
+          data: themeProvider.isDarkMode
+              ? AppTheme.darkTheme
+              : AppTheme.lightTheme,
           child: MaterialApp(
             title: 'Sajilo Parking',
-            themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-            theme: _buildLightTheme(),
-            darkTheme: _buildDarkTheme(),
-            themeAnimationDuration: const Duration(milliseconds: 300), // Add theme animation
-            themeAnimationCurve: Curves.easeInOut, // Smooth curve
+            debugShowCheckedModeBanner: false,
+            themeMode: themeProvider.isDarkMode
+                ? ThemeMode.dark
+                : ThemeMode.light,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeAnimationDuration: const Duration(milliseconds: 300),
+            themeAnimationCurve: Curves.easeInOut,
             home: const AuthWrapper(),
             routes: {
               '/login': (context) => const LoginScreen(),
@@ -85,94 +89,12 @@ class SajiloParking extends StatelessWidget {
               '/details': (context) => const ParkingDetailsScreen(),
               '/add': (context) => const AddParkingScreen(),
               '/profile': (context) => const ProfileScreen(),
+              '/onboarding': (context) => const OnboardingScreen(),
+              '/signup': (context) => const SignUpScreen(),
             },
           ),
         );
       },
-    );
-  }
-
-  // Light theme configuration
-  ThemeData _buildLightTheme() {
-    return ThemeData(
-      brightness: Brightness.light,
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.blue,
-        brightness: Brightness.light,
-      ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      cardTheme: CardThemeData(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.blue,
-          foregroundColor: Colors.white,
-        ),
-      ),
-      switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
-          if (states.contains(WidgetState.selected)) {
-            return Colors.blue;
-          }
-          return Colors.grey;
-        }),
-        trackColor: WidgetStateProperty.resolveWith<Color>((states) {
-          if (states.contains(WidgetState.selected)) {
-            return Colors.blue.withOpacity(0.5);
-          }
-          return Colors.grey.withOpacity(0.5);
-        }),
-      ),
-    );
-  }
-
-  // Dark theme configuration
-  ThemeData _buildDarkTheme() {
-    return ThemeData(
-      brightness: Brightness.dark,
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.blue,
-        brightness: Brightness.dark,
-      ),
-      appBarTheme: AppBarTheme(
-        backgroundColor: Colors.grey[900],
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      scaffoldBackgroundColor: Colors.grey[850],
-      cardTheme: CardThemeData(
-        color: Colors.grey[800],
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.blue[700],
-          foregroundColor: Colors.white,
-        ),
-      ),
-      switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
-          if (states.contains(WidgetState.selected)) {
-            return Colors.blue;
-          }
-          return Colors.grey;
-        }),
-        trackColor: WidgetStateProperty.resolveWith<Color>((states) {
-          if (states.contains(WidgetState.selected)) {
-            return Colors.blue.withOpacity(0.5);
-          }
-          return Colors.grey.withOpacity(0.5);
-        }),
-      ),
     );
   }
 }

@@ -1,275 +1,315 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../services/auth_service.dart';
 
-class ProfileScreen extends StatelessWidget {
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
+import '../providers/theme_provider.dart';
+import '../models/user_model.dart';
+
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final AuthService _authService = AuthService();
+  UserModel? _userModel;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final user = _authService.currentUser;
+    if (user != null && !_authService.isGuest) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (doc.exists) {
+          if (mounted) {
+            setState(() {
+              _userModel = UserModel.fromFirestore(doc);
+              _isLoading = false;
+            });
+          }
+        } else {
+          if (mounted) setState(() => _isLoading = false);
+        }
+      } catch (e) {
+        debugPrint('Error loading user data: $e');
+        if (mounted) setState(() => _isLoading = false);
+      }
+    } else {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    final AuthService authService = AuthService();
+    final isGuest = _authService.isGuest;
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
+        actions: [
+          if (!isGuest)
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Edit Profile Coming Soon')),
+                );
+              },
+            ),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Profile Header
-            Container(
-              width: double.infinity,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Theme.of(context).dividerColor,
-                  width: 1,
-                ),
-              ),
               child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundColor: Theme.of(context).primaryColor,
-                    backgroundImage: user?.photoURL != null
-                      ? NetworkImage(user!.photoURL!)
-                      : null,
-                    child: user?.photoURL == null
-                      ? Text(
-                          user?.displayName?.isNotEmpty == true
-                            ? user!.displayName![0].toUpperCase()
-                            : user?.email?.isNotEmpty == true
-                              ? user!.email![0].toUpperCase()
-                              : 'U',
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        )
-                      : null,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    user?.displayName ?? 'Anonymous User',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    user?.email ?? 'No email',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                  // Profile Header
+                  _buildProfileHeader(isGuest, theme),
+                  const SizedBox(height: 24),
 
-            const SizedBox(height: 24),
+                  // Stats (if not guest)
+                  if (!isGuest) _buildStats(theme),
+                  if (!isGuest) const SizedBox(height: 24),
 
-            // Profile Options
-            Card(
-              child: Column(
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.person_outline),
-                    title: const Text('Edit Profile'),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      // TODO: Implement edit profile functionality
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Edit profile feature coming soon!'),
-                        ),
-                      );
-                    },
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.history),
-                    title: const Text('Parking History'),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      // TODO: Implement parking history functionality
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Parking history feature coming soon!'),
-                        ),
-                      );
-                    },
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.favorite_outline),
-                    title: const Text('Favorite Spots'),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      // TODO: Implement favorite spots functionality
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Favorite spots feature coming soon!'),
-                        ),
-                      );
-                    },
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.settings_outlined),
-                    title: const Text('Settings'),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      // TODO: Implement settings functionality
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Settings feature coming soon!'),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
+                  // Menu Items
+                  _buildMenuSection(theme, isGuest),
 
-            const SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
-            // App Info
-            Card(
-              child: Column(
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.info_outline),
-                    title: const Text('About'),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('About Parking Yeta'),
-                          content: const Text(
-                            'Parking Yeta is your go-to app for finding and managing parking spots in your area. '
-                            'Discover nearby parking options, add new spots, and help build a comprehensive parking directory.',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('OK'),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.help_outline),
-                    title: const Text('Help & Support'),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      // TODO: Implement help & support functionality
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Help & support feature coming soon!'),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Logout Button - Only show if user is logged in
-            if (user != null)
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.logout, color: Colors.red),
-                  title: const Text(
-                    'Logout',
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  onTap: () async {
-                    final shouldLogout = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Confirm Logout'),
-                        content: const Text('Are you sure you want to logout?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Cancel'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text(
-                              'Logout',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-
-                    if (shouldLogout == true) {
-                      try {
-                        await authService.signOut();
+                  // Sign Out Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        await _authService.signOut();
                         if (context.mounted) {
-                          // Navigate to home screen instead of login screen
                           Navigator.pushNamedAndRemoveUntil(
                             context,
-                            '/',
+                            '/login',
                             (route) => false,
                           );
                         }
-                      } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error signing out: $e'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      }
-                    }
-                  },
-                ),
-              ),
-
-            // Login Button - Only show if user is not logged in
-            if (user == null)
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.login, color: Colors.blue),
-                  title: const Text(
-                    'Login',
-                    style: TextStyle(
-                      color: Colors.blue,
-                      fontWeight: FontWeight.w500,
+                      },
+                      icon: const Icon(Icons.logout),
+                      label: Text(isGuest ? 'Sign In / Register' : 'Sign Out'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: theme.colorScheme.error,
+                        side: BorderSide(color: theme.colorScheme.error),
+                      ),
                     ),
                   ),
-                  onTap: () {
-                    Navigator.pushNamed(context, '/login');
-                  },
-                ),
+                ],
               ),
+            ),
+    );
+  }
 
-            const SizedBox(height: 16),
-          ],
+  Widget _buildProfileHeader(bool isGuest, ThemeData theme) {
+    return Column(
+      children: [
+        CircleAvatar(
+          radius: 50,
+          backgroundColor: theme.primaryColor.withValues(alpha: 0.1),
+          backgroundImage: !isGuest && _userModel?.photoURL != null
+              ? NetworkImage(_userModel!.photoURL!)
+              : null,
+          child: isGuest || _userModel?.photoURL == null
+              ? Icon(
+                  isGuest ? Icons.person_outline : Icons.person,
+                  size: 50,
+                  color: theme.primaryColor,
+                )
+              : null,
         ),
+        const SizedBox(height: 16),
+        Text(
+          isGuest ? 'Guest User' : (_userModel?.displayName ?? 'User'),
+          style: theme.textTheme.headlineMedium,
+        ),
+        if (!isGuest && _userModel?.email != null)
+          Text(_userModel!.email!, style: theme.textTheme.bodyMedium),
+      ],
+    );
+  }
+
+  Widget _buildStats(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
       ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildStatItem(
+            theme,
+            _userModel?.contributionsCount.toString() ?? '0',
+            'Contributions',
+          ),
+          _buildVerticalDivider(),
+          _buildStatItem(theme, '0', 'Reviews'), // Placeholder
+          _buildVerticalDivider(),
+          _buildStatItem(theme, '0', 'Upvotes'), // Placeholder
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVerticalDivider() {
+    return Container(
+      height: 40,
+      width: 1,
+      color: Colors.grey.withValues(alpha: 0.2),
+    );
+  }
+
+  Widget _buildStatItem(ThemeData theme, String value, String label) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: theme.primaryColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: theme.textTheme.bodySmall),
+      ],
+    );
+  }
+
+  Widget _buildMenuSection(ThemeData theme, bool isGuest) {
+    return Column(
+      children: [
+        if (!isGuest) ...[
+          _buildMenuItem(
+            theme,
+            icon: Icons.history,
+            title: 'Parking History',
+            onTap: () {},
+          ),
+          _buildMenuItem(
+            theme,
+            icon: Icons.favorite_border,
+            title: 'My Favorites',
+            onTap: () {},
+          ),
+        ],
+        _buildMenuItem(
+          theme,
+          icon: Icons.settings_outlined,
+          title: 'Settings',
+          onTap: () {
+            // Show settings bottom sheet or navigate
+            _showSettingsBottomSheet(context);
+          },
+        ),
+        _buildMenuItem(
+          theme,
+          icon: Icons.help_outline,
+          title: 'Help & Support',
+          onTap: () {},
+        ),
+        _buildMenuItem(
+          theme,
+          icon: Icons.info_outline,
+          title: 'About Sajilo Parking',
+          onTap: () {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMenuItem(
+    ThemeData theme, {
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: theme.primaryColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: theme.primaryColor),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+        trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  void _showSettingsBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Consumer<ThemeProvider>(
+          builder: (context, themeProvider, child) {
+            return Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Settings',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 24),
+                  SwitchListTile(
+                    title: const Text('Dark Mode'),
+                    subtitle: const Text('Enable dark theme'),
+                    value: themeProvider.isDarkMode,
+                    onChanged: (value) {
+                      themeProvider.toggleTheme();
+                    },
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  const Divider(),
+                  ListTile(
+                    title: const Text('Notifications'),
+                    trailing: Switch(value: true, onChanged: (val) {}),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  const Divider(),
+                  ListTile(
+                    title: const Text('Distance Units'),
+                    trailing: const Text('km'),
+                    contentPadding: EdgeInsets.zero,
+                    onTap: () {},
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -25,7 +25,7 @@ android {
         applicationId = "com.example.sajiloparking"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 23  // Updated from flutter.minSdkVersion to be compatible with Firebase Auth
+        minSdk = flutter.minSdkVersion  // Updated from flutter.minSdkVersion to be compatible with Firebase Auth
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

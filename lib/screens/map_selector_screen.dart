@@ -10,7 +10,7 @@ class MapSelectorScreen extends StatefulWidget {
   final LatLng? initialLocation;
 
   @override
-  _MapSelectorScreenState createState() => _MapSelectorScreenState();
+  State<MapSelectorScreen> createState() => _MapSelectorScreenState();
 }
 
 class _MapSelectorScreenState extends State<MapSelectorScreen> {
@@ -63,7 +63,10 @@ class _MapSelectorScreenState extends State<MapSelectorScreen> {
       final locationData = await _location.getLocation();
       if (locationData.latitude != null && locationData.longitude != null) {
         setState(() {
-          _selectedLocation = LatLng(locationData.latitude!, locationData.longitude!);
+          _selectedLocation = LatLng(
+            locationData.latitude!,
+            locationData.longitude!,
+          );
           _isLoading = false;
         });
 
@@ -93,7 +96,8 @@ class _MapSelectorScreenState extends State<MapSelectorScreen> {
       await Future.delayed(const Duration(milliseconds: 500));
 
       // Create a simple address based on coordinates - Replace with actual geocoding in production
-      final String address = "Near ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}";
+      final String address =
+          "Near ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}";
 
       setState(() {
         _addressText = address;
@@ -131,125 +135,126 @@ class _MapSelectorScreenState extends State<MapSelectorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Choose on Map'),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('Choose on Map'), elevation: 0),
       body: _isLoading
-        ? const Center(child: CircularProgressIndicator())
-        : Stack(
-            children: [
-              // Google Map
-              GoogleMap(
-                initialCameraPosition: CameraPosition(
-                  target: _selectedLocation,
-                  zoom: 17.0,
+          ? const Center(child: CircularProgressIndicator())
+          : Stack(
+              children: [
+                // Google Map
+                GoogleMap(
+                  initialCameraPosition: CameraPosition(
+                    target: _selectedLocation,
+                    zoom: 17.0,
+                  ),
+                  onMapCreated: _onMapCreated,
+                  onCameraIdle: _onCameraIdle,
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: false,
+                  zoomControlsEnabled: false,
+                  compassEnabled: true,
                 ),
-                onMapCreated: _onMapCreated,
-                onCameraIdle: _onCameraIdle,
-                myLocationEnabled: true,
-                myLocationButtonEnabled: false,
-                zoomControlsEnabled: false,
-                compassEnabled: true,
-              ),
 
-              // Center Pin (fixed position)
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 40), // Offset for pin base
-                      child: Icon(
-                        Icons.location_pin,
-                        color: Theme.of(context).primaryColor,
-                        size: 50,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 5,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Bottom address card and confirm button
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Column(
-                  children: [
-                    // Address card
-                    Container(
-                      margin: const EdgeInsets.all(16.0),
-                      padding: const EdgeInsets.all(16.0),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Address',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                // Center Pin (fixed position)
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.only(
+                          bottom: 40,
+                        ), // Offset for pin base
+                        child: Icon(
+                          Icons.location_pin,
+                          color: Theme.of(context).primaryColor,
+                          size: 50,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.3),
+                              blurRadius: 5,
+                              offset: const Offset(0, 3),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          _addressLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  child: LinearProgressIndicator(
-                                    backgroundColor: Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Bottom address card and confirm button
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Column(
+                    children: [
+                      // Address card
+                      Container(
+                        margin: const EdgeInsets.all(16.0),
+                        padding: const EdgeInsets.all(16.0),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.1),
+                              blurRadius: 10,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Address',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            _addressLoading
+                                ? const SizedBox(
+                                    height: 20,
+                                    child: LinearProgressIndicator(
+                                      backgroundColor: Colors.transparent,
+                                    ),
+                                  )
+                                : Text(
+                                    _addressText,
+                                    style: const TextStyle(fontSize: 14),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                )
-                              : Text(
-                                  _addressText,
-                                  style: const TextStyle(fontSize: 14),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(context, _selectedLocation);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                 ),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                Navigator.pop(context, _selectedLocation);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                child: const Text(
+                                  'Confirm Location',
+                                  style: TextStyle(fontSize: 16),
                                 ),
-                              ),
-                              child: const Text(
-                                'Confirm Location',
-                                style: TextStyle(fontSize: 16),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           setState(() => _isLoading = true);
@@ -266,17 +271,25 @@ class _MapSelectorScreenState extends State<MapSelectorScreen> {
               _mapController.animateCamera(
                 CameraUpdate.newLatLngZoom(_selectedLocation, 17.0),
               );
-            
+
               // Show success message when location is found
-              _showFloatingInfoPanel('Location found! Map updated to your current position.');
+              _showFloatingInfoPanel(
+                'Location found! Map updated to your current position.',
+              );
             } catch (e) {
               // Handle the case when map controller is not initialized yet
-              _showFloatingInfoPanel('Location found, but map is not ready yet.', isError: true);
+              _showFloatingInfoPanel(
+                'Location found, but map is not ready yet.',
+                isError: true,
+              );
               debugPrint('Error with map controller: $e');
             }
           } else if (mounted) {
             // Show error message if we couldn't get location
-            _showFloatingInfoPanel('Could not access your current location. Please check your permissions.', isError: true);
+            _showFloatingInfoPanel(
+              'Could not access your current location. Please check your permissions.',
+              isError: true,
+            );
           }
         },
         tooltip: 'My Location',
@@ -306,7 +319,9 @@ class _MapSelectorScreenState extends State<MapSelectorScreen> {
         child: Material(
           elevation: 6.0,
           borderRadius: BorderRadius.circular(8),
-          color: isError ? Colors.red.shade700 : Colors.black.withOpacity(0.8),
+          color: isError
+              ? Colors.red.shade700
+              : Colors.black.withValues(alpha: 0.8),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
